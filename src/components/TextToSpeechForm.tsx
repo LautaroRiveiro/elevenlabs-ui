@@ -7,6 +7,12 @@ interface Voice {
   name: string;
 }
 
+interface Model {
+  model_id: string;
+  name: string;
+  description: string;
+}
+
 interface VoiceSettings {
   stability: number;
   similarity_boost: number;
@@ -28,7 +34,9 @@ export default function TextToSpeechForm() {
   const [error, setError] = useState<string | null>(null)
   const [audioSrc, setAudioSrc] = useState<string | null>(null)
   const [voices, setVoices] = useState<Voice[]>([])
+  const [models, setModels] = useState<Model[]>([])
   const [isLoadingVoices, setIsLoadingVoices] = useState(true)
+  const [isLoadingModels, setIsLoadingModels] = useState(true)
   const [isLoadingVoiceSettings, setIsLoadingVoiceSettings] = useState(false)
 
   useEffect(() => {
@@ -39,7 +47,7 @@ export default function TextToSpeechForm() {
           throw new Error('Failed to fetch voices');
         }
         const data = await response.json();
-        setVoices(data.voices);
+        setVoices(data.voices || []);
       } catch (error) {
         console.error('Error fetching voices:', error);
         setError('Failed to load voices. Please try again later.');
@@ -48,7 +56,24 @@ export default function TextToSpeechForm() {
       }
     };
 
+    const fetchModels = async () => {
+      try {
+        const response = await fetch('/api/get-models');
+        if (!response.ok) {
+          throw new Error('Failed to fetch models');
+        }
+        const data = await response.json();
+        setModels(data || []); // Update this line to handle the array directly
+      } catch (error) {
+        console.error('Error fetching models:', error);
+        setError('Failed to load models. Please try again later.');
+      } finally {
+        setIsLoadingModels(false);
+      }
+    };
+
     fetchVoices();
+    fetchModels();
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -176,12 +201,25 @@ export default function TextToSpeechForm() {
           onChange={handleInputChange}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           required
+          disabled={isLoadingModels}
         >
           <option value="">Select a model</option>
-          <option value="eleven_monolingual_v1">Eleven Monolingual v1</option>
-          <option value="eleven_multilingual_v1">Eleven Multilingual v1</option>
+          {models.map((model) => (
+            <option key={model.model_id} value={model.model_id}>
+              {model.name}
+            </option>
+          ))}
         </select>
+        {isLoadingModels && <p className="mt-1 text-sm text-gray-500">Loading models...</p>}
       </div>
+
+      {formData.model_id && (
+        <div className="mb-4">
+          <p className="text-sm text-gray-600">
+            {models.find(model => model.model_id === formData.model_id)?.description}
+          </p>
+        </div>
+      )}
 
       <div className="mb-4">
         <label htmlFor="voice_id" className="block text-sm font-medium text-gray-700 mb-2">Voice</label>
@@ -278,7 +316,7 @@ export default function TextToSpeechForm() {
       <button
         type="submit"
         className="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
-        disabled={isLoading || isLoadingVoices || isLoadingVoiceSettings}
+        disabled={isLoading || isLoadingVoices || isLoadingModels || isLoadingVoiceSettings}
       >
         {isLoading ? 'Generating...' : 'Generate Speech'}
       </button>
