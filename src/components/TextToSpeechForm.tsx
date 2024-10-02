@@ -7,13 +7,18 @@ interface Voice {
   name: string;
 }
 
+interface VoiceSettings {
+  stability?: number;
+  similarity_boost?: number;
+}
+
 export default function TextToSpeechForm() {
   const [formData, setFormData] = useState({
     text: '',
     modelId: '',
     voiceId: '',
-    stability: 0,
-    similarityBoost: 0,
+    stability: 0.5,
+    similarityBoost: 0.5,
     optimizeStreamingLatency: false,
   })
   const [isLoading, setIsLoading] = useState(false)
@@ -21,6 +26,7 @@ export default function TextToSpeechForm() {
   const [audioSrc, setAudioSrc] = useState<string | null>(null)
   const [voices, setVoices] = useState<Voice[]>([])
   const [isLoadingVoices, setIsLoadingVoices] = useState(true)
+  const [isLoadingVoiceSettings, setIsLoadingVoiceSettings] = useState(false)
 
   useEffect(() => {
     const fetchVoices = async () => {
@@ -48,6 +54,51 @@ export default function TextToSpeechForm() {
       ...prev,
       [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
     }))
+
+    if (name === 'voiceId' && value) {
+      fetchVoiceSettings(value);
+    }
+  }
+
+  const fetchVoiceSettings = async (voiceId: string) => {
+    setIsLoadingVoiceSettings(true);
+    setError(null);  // Clear any previous errors
+    try {
+      const response = await fetch(`/api/get-voice-settings?voiceId=${voiceId}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      if (!data.similarity_boost && !data.stability) {
+        throw new Error('Voice settings not found in the response');
+      }
+      updateVoiceSettings(data);
+    } catch (error) {
+      console.error('Error fetching voice settings:', error);
+      setError('Failed to load voice settings. Using default values.');
+      updateVoiceSettings(null);  // This will set default values
+    } finally {
+      setIsLoadingVoiceSettings(false);
+    }
+  }
+
+  const updateVoiceSettings = (settings: VoiceSettings | null) => {
+    if (settings) {
+      setFormData(prev => ({
+        ...prev,
+        stability: settings.stability ?? prev.stability,
+        similarityBoost: settings.similarity_boost ?? prev.similarityBoost,
+      }));
+    } else {
+      console.error('Received null or undefined voice settings');
+      setError('Failed to load voice settings. Using default values.');
+      // Set default values
+      setFormData(prev => ({
+        ...prev,
+        stability: 0.5,  // Default value
+        similarityBoost: 0.5,  // Default value
+      }));
+    }
   }
 
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -131,7 +182,7 @@ export default function TextToSpeechForm() {
           onChange={handleInputChange}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           required
-          disabled={isLoadingVoices}
+          disabled={isLoadingVoices || isLoadingVoiceSettings}
         >
           <option value="">Select a voice</option>
           {voices.map((voice) => (
@@ -141,11 +192,12 @@ export default function TextToSpeechForm() {
           ))}
         </select>
         {isLoadingVoices && <p className="mt-1 text-sm text-gray-500">Loading voices...</p>}
+        {isLoadingVoiceSettings && <p className="mt-1 text-sm text-gray-500">Loading voice settings...</p>}
       </div>
 
       <div className="mb-4">
         <label htmlFor="stability" className="block text-sm font-medium text-gray-700 mb-2">
-          Stability: {formData.stability}
+          Stability: {formData.stability.toFixed(2)}
         </label>
         <input
           type="range"
@@ -153,16 +205,17 @@ export default function TextToSpeechForm() {
           name="stability"
           min="0"
           max="1"
-          step="0.1"
+          step="0.01"
           value={formData.stability}
           onChange={handleSliderChange}
           className="w-full"
+          disabled={isLoadingVoiceSettings}
         />
       </div>
 
       <div className="mb-4">
         <label htmlFor="similarityBoost" className="block text-sm font-medium text-gray-700 mb-2">
-          Similarity Boost: {formData.similarityBoost}
+          Similarity Boost: {formData.similarityBoost.toFixed(2)}
         </label>
         <input
           type="range"
@@ -170,10 +223,11 @@ export default function TextToSpeechForm() {
           name="similarityBoost"
           min="0"
           max="1"
-          step="0.1"
+          step="0.01"
           value={formData.similarityBoost}
           onChange={handleSliderChange}
           className="w-full"
+          disabled={isLoadingVoiceSettings}
         />
       </div>
 
@@ -193,7 +247,7 @@ export default function TextToSpeechForm() {
       <button
         type="submit"
         className="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
-        disabled={isLoading || isLoadingVoices}
+        disabled={isLoading || isLoadingVoices || isLoadingVoiceSettings}
       >
         {isLoading ? 'Generating...' : 'Generate Speech'}
       </button>
