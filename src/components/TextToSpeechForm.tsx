@@ -1,6 +1,11 @@
 'use client'
 
-import { useState, FormEvent } from 'react'
+import { useState, FormEvent, useEffect } from 'react'
+
+interface Voice {
+  voice_id: string;
+  name: string;
+}
 
 export default function TextToSpeechForm() {
   const [formData, setFormData] = useState({
@@ -14,6 +19,28 @@ export default function TextToSpeechForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [audioSrc, setAudioSrc] = useState<string | null>(null)
+  const [voices, setVoices] = useState<Voice[]>([])
+  const [isLoadingVoices, setIsLoadingVoices] = useState(true)
+
+  useEffect(() => {
+    const fetchVoices = async () => {
+      try {
+        const response = await fetch('/api/get-voices');
+        if (!response.ok) {
+          throw new Error('Failed to fetch voices');
+        }
+        const data = await response.json();
+        setVoices(data.voices);
+      } catch (error) {
+        console.error('Error fetching voices:', error);
+        setError('Failed to load voices. Please try again later.');
+      } finally {
+        setIsLoadingVoices(false);
+      }
+    };
+
+    fetchVoices();
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target
@@ -96,17 +123,24 @@ export default function TextToSpeechForm() {
       </div>
 
       <div className="mb-4">
-        <label htmlFor="voiceId" className="block text-sm font-medium text-gray-700 mb-2">Voice ID</label>
-        <input
-          type="text"
+        <label htmlFor="voiceId" className="block text-sm font-medium text-gray-700 mb-2">Voice</label>
+        <select
           id="voiceId"
           name="voiceId"
           value={formData.voiceId}
           onChange={handleInputChange}
-          placeholder="Enter the voice ID"
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           required
-        />
+          disabled={isLoadingVoices}
+        >
+          <option value="">Select a voice</option>
+          {voices.map((voice) => (
+            <option key={voice.voice_id} value={voice.voice_id}>
+              {voice.name}
+            </option>
+          ))}
+        </select>
+        {isLoadingVoices && <p className="mt-1 text-sm text-gray-500">Loading voices...</p>}
       </div>
 
       <div className="mb-4">
@@ -159,7 +193,7 @@ export default function TextToSpeechForm() {
       <button
         type="submit"
         className="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
-        disabled={isLoading}
+        disabled={isLoading || isLoadingVoices}
       >
         {isLoading ? 'Generating...' : 'Generate Speech'}
       </button>
