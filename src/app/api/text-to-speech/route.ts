@@ -1,41 +1,74 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server'
+
+interface RequestBody {
+  text: string
+  model_id: string
+  voice_id: string
+  voice_settings: {
+    stability: number
+    similarity_boost: number
+  }
+  voice_latency: number
+  output_format: string
+  language_code?: string
+}
 
 export async function POST(request: Request) {
-  const body = await request.json();
-  const apiKey = process.env.ELEVENLABS_API_KEY;
+  try {
+    const body: RequestBody = await request.json()
+    const {
+      text,
+      model_id,
+      voice_id,
+      voice_settings,
+      voice_latency,
+      output_format,
+      language_code
+    } = body
 
-  if (!apiKey) {
-    return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
-  }
+    const apiKey = process.env.ELEVENLABS_API_KEY
+    if (!apiKey) {
+      return NextResponse.json({ error: 'API key not configured' }, { status: 500 })
+    }
 
-  const url = `https://api.elevenlabs.io/v1/text-to-speech/${body.voice_id}`;
+    const url = `https://api.elevenlabs.io/v1/text-to-speech/${voice_id}`
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
+    const headers = {
       'Accept': 'audio/mpeg',
       'Content-Type': 'application/json',
       'xi-api-key': apiKey
-    },
-    body: JSON.stringify({
-      text: body.text,
-      model_id: body.model_id,
-      voice_settings: {
-        stability: body.voice_settings.stability,
-        similarity_boost: body.voice_settings.similarity_boost
-      },
-      voice_latency: body.voice_latency,
-      output_format: body.output_format
+    }
+
+    const requestBody: any = {
+      text,
+      model_id,
+      voice_settings,
+      voice_latency,
+      output_format
+    }
+
+    // Solo incluir language_code si el modelo es Turbo v2.5
+    if (model_id === 'eleven_turbo_v2_5' && language_code) {
+      requestBody.language_code = language_code
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify(requestBody)
     })
-  });
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    return NextResponse.json({ error: errorData.detail || 'Failed to generate speech' }, { status: response.status });
+    if (!response.ok) {
+      const errorData = await response.json()
+      return NextResponse.json({ error: errorData.detail }, { status: response.status })
+    }
+
+    const audioBuffer = await response.arrayBuffer()
+    const base64Audio = Buffer.from(audioBuffer).toString('base64')
+
+    return NextResponse.json({ audio: base64Audio })
+  } catch (error) {
+    console.error('Error in text-to-speech API:', error)
+    return NextResponse.json({ error: 'An error occurred while processing your request' }, { status: 500 })
   }
-
-  const audioBuffer = await response.arrayBuffer();
-  const audioBase64 = Buffer.from(audioBuffer).toString('base64');
-
-  return NextResponse.json({ audio: audioBase64 });
 }
