@@ -300,7 +300,7 @@ export default function TextToSpeechForm() {
       const zip = new JSZip();
 
       // Add each audio to the zip file
-      generatedAudios.forEach((audio, index) => {
+      generatedAudios.forEach((audio) => {
         const base64Data = audio.audioSrc.split(',')[1];
         zip.file(`${audio.variable}.mp3`, base64Data, {base64: true});
       });
