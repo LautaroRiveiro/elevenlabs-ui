@@ -20,6 +20,7 @@ interface RequestBody {
   next_text?: string
   previous_request_ids?: string[]
   next_request_ids?: string[]
+  variables: string[]
 }
 
 interface ElevenLabsRequestBody {
@@ -57,46 +58,54 @@ export async function POST(request: Request) {
       previous_text,
       next_text,
       previous_request_ids,
-      next_request_ids
+      next_request_ids,
+      variables
     } = body
 
     const url = `https://api.elevenlabs.io/v1/text-to-speech/${voice_id}`
 
-    const requestBody: ElevenLabsRequestBody = {
-      text,
-      model_id,
-      voice_settings,
-      voice_latency,
-      output_format
+    const generatedAudios: string[] = []
+
+    for (const variable of variables) {
+      const processedText = text.replace('{}', variable)
+
+      const requestBody: ElevenLabsRequestBody = {
+        text: processedText,
+        model_id,
+        voice_settings,
+        voice_latency,
+        output_format
+      }
+
+      // Add optional fields only if they are present
+      if (language_code) requestBody.language_code = language_code
+      if (seed !== undefined) requestBody.seed = seed
+      if (previous_text) requestBody.previous_text = previous_text
+      if (next_text) requestBody.next_text = next_text
+      if (previous_request_ids && previous_request_ids.length > 0) requestBody.previous_request_ids = previous_request_ids
+      if (next_request_ids && next_request_ids.length > 0) requestBody.next_request_ids = next_request_ids
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Accept': 'audio/mpeg',
+          'xi-api-key': apiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        return NextResponse.json({ error: errorData.detail || 'Failed to generate speech' }, { status: response.status })
+      }
+
+      const audioBuffer = await response.arrayBuffer()
+      const base64Audio = Buffer.from(audioBuffer).toString('base64')
+      generatedAudios.push(base64Audio)
     }
 
-    // Add optional fields only if they are present
-    if (language_code) requestBody.language_code = language_code
-    if (seed !== undefined) requestBody.seed = seed
-    if (previous_text) requestBody.previous_text = previous_text
-    if (next_text) requestBody.next_text = next_text
-    if (previous_request_ids && previous_request_ids.length > 0) requestBody.previous_request_ids = previous_request_ids
-    if (next_request_ids && next_request_ids.length > 0) requestBody.next_request_ids = next_request_ids
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Accept': 'audio/mpeg',
-        'xi-api-key': apiKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json()
-      return NextResponse.json({ error: errorData.detail || 'Failed to generate speech' }, { status: response.status })
-    }
-
-    const audioBuffer = await response.arrayBuffer()
-    const base64Audio = Buffer.from(audioBuffer).toString('base64')
-
-    return NextResponse.json({ audio: base64Audio })
+    return NextResponse.json({ audios: generatedAudios })
   } catch (error) {
     console.error('Error in text-to-speech API:', error)
     return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 })

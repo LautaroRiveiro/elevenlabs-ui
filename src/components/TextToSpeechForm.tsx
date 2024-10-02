@@ -1,5 +1,6 @@
 'use client'
 
+import JSZip from 'jszip';
 import { useState, FormEvent, useEffect } from 'react'
 
 interface Voice {
@@ -23,6 +24,11 @@ interface VoiceSettings {
   use_speaker_boost?: boolean;
 }
 
+interface GeneratedAudio {
+  variable: string;
+  audioSrc: string;
+}
+
 export default function TextToSpeechForm() {
   const [apiKey, setApiKey] = useState<string>('')
   const [isApiKeyValid, setIsApiKeyValid] = useState<boolean | null>(null)
@@ -39,6 +45,7 @@ export default function TextToSpeechForm() {
     next_text?: string;
     previous_request_ids: string[];
     next_request_ids: string[];
+    variable_list: string;
   }>({
     text: '',
     model_id: '',
@@ -52,10 +59,11 @@ export default function TextToSpeechForm() {
     language_code: '',
     previous_request_ids: [],
     next_request_ids: [],
+    variable_list: '',
   })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [audioSrc, setAudioSrc] = useState<string | null>(null)
+  const [generatedAudios, setGeneratedAudios] = useState<GeneratedAudio[]>([])
   const [voices, setVoices] = useState<Voice[]>([])
   const [models, setModels] = useState<Model[]>([])
   const [isLoadingVoices, setIsLoadingVoices] = useState(true)
@@ -240,16 +248,20 @@ export default function TextToSpeechForm() {
     e.preventDefault()
     setIsLoading(true)
     setError(null)
-    setAudioSrc(null)
+    setGeneratedAudios([])
 
     try {
+      const variables = formData.variable_list.split(',').map(v => v.trim()).filter(v => v !== '')
       const response = await fetch('/api/text-to-speech', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': apiKey,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          variables,
+        }),
       })
 
       if (!response.ok) {
@@ -258,8 +270,11 @@ export default function TextToSpeechForm() {
       }
 
       const data = await response.json()
-      const audio = `data:audio/mpeg;base64,${data.audio}`
-      setAudioSrc(audio)
+      const newGeneratedAudios = data.audios.map((audio: string, index: number) => ({
+        variable: variables[index],
+        audioSrc: `data:audio/mpeg;base64,${audio}`
+      }))
+      setGeneratedAudios(newGeneratedAudios)
     } catch (err) {
       setError('An error occurred while generating speech. Please try again.')
       console.error(err)
@@ -273,6 +288,39 @@ export default function TextToSpeechForm() {
     setIsApiKeyValid(true);
     fetchInitialData();
   };
+
+  const handleDownloadZip = async () => {
+    if (generatedAudios.length === 0) {
+      setError('No audios generated yet. Please generate audios first.');
+      return;
+    }
+
+    try {
+      const zip = new JSZip();
+
+      // Add each audio to the zip file
+      generatedAudios.forEach((audio, index) => {
+        const base64Data = audio.audioSrc.split(',')[1];
+        zip.file(`${audio.variable}.mp3`, base64Data, {base64: true});
+      });
+
+      // Generate the zip file
+      const content = await zip.generateAsync({type: "blob"});
+
+      // Create a download link and trigger the download
+      const url = window.URL.createObjectURL(content);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = 'generated_audios.zip';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError('An error occurred while generating the ZIP file. Please try again.');
+      console.error(err);
+    }
+  }
 
   const selectedModel = models.find(model => model.model_id === formData.model_id);
   const isTurboV25 = selectedModel?.model_id === 'eleven_turbo_v2_5';
@@ -319,10 +367,23 @@ export default function TextToSpeechForm() {
           name="text"
           value={formData.text}
           onChange={handleInputChange}
-          placeholder="Enter the text to convert to speech"
+          placeholder="Enter the text to convert to speech. Use {} to indicate where the variable should be inserted."
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           rows={4}
           required
+        />
+      </div>
+
+      <div className="mb-4">
+        <label htmlFor="variable_list" className="block text-sm font-medium text-gray-700 mb-2">Variable List (comma-separated)</label>
+        <input
+          type="text"
+          id="variable_list"
+          name="variable_list"
+          value={formData.variable_list}
+          onChange={handleInputChange}
+          placeholder="Enter comma-separated values"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
 
@@ -579,11 +640,24 @@ export default function TextToSpeechForm() {
         </div>
       )}
 
-      {audioSrc && (
+      {generatedAudios.length > 0 && (
         <div className="mt-4">
-          <audio controls src={audioSrc} className="w-full">
-            Your browser does not support the audio element.
-          </audio>
+          <h3 className="text-lg font-semibold mb-2">Generated Audios:</h3>
+          {generatedAudios.map((audio, index) => (
+            <div key={index} className="mb-4">
+              <p className="text-sm font-medium text-gray-700 mb-1">Variable: {audio.variable}</p>
+              <audio controls src={audio.audioSrc} className="w-full">
+                Your browser does not support the audio element.
+              </audio>
+            </div>
+          ))}
+          <button
+            onClick={handleDownloadZip}
+            type='button'
+            className="mt-4 w-full bg-green-500 text-white py-2 px-4 rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+          >
+            Download All as ZIP
+          </button>
         </div>
       )}
     </form>
