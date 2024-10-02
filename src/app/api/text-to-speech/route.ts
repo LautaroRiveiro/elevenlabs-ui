@@ -22,6 +22,20 @@ interface RequestBody {
   next_request_ids?: string[]
 }
 
+interface ElevenLabsRequestBody {
+  text: string
+  model_id: string
+  voice_settings: VoiceSettings
+  voice_latency: number
+  output_format: string
+  language_code?: string
+  seed?: number
+  previous_text?: string
+  next_text?: string
+  previous_request_ids?: string[]
+  next_request_ids?: string[]
+}
+
 export async function POST(request: Request) {
   try {
     const body: RequestBody = await request.json()
@@ -48,7 +62,7 @@ export async function POST(request: Request) {
 
     const url = `https://api.elevenlabs.io/v1/text-to-speech/${voice_id}`
 
-    const requestBody: any = {
+    const requestBody: ElevenLabsRequestBody = {
       text,
       model_id,
       voice_settings,
