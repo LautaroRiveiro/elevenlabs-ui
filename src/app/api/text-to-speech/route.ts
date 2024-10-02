@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     const generatedAudios: string[] = []
 
     for (const variable of variables) {
-      const processedText = text.replace('{}', variable)
+      const processedText = text.replaceAll('{}', variable)
 
       const requestBody: ElevenLabsRequestBody = {
         text: processedText,
