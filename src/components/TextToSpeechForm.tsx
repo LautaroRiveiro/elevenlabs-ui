@@ -69,6 +69,7 @@ export default function TextToSpeechForm() {
   const [isLoadingVoices, setIsLoadingVoices] = useState(true)
   const [isLoadingModels, setIsLoadingModels] = useState(true)
   const [isLoadingVoiceSettings, setIsLoadingVoiceSettings] = useState(false)
+  const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null)
 
   useEffect(() => {
     checkApiKey();
@@ -321,6 +322,45 @@ export default function TextToSpeechForm() {
       console.error(err);
     }
   }
+
+  const handleRegenerateAudio = async (index: number) => {
+    setRegeneratingIndex(index);
+    setError(null);
+
+    try {
+      const variable = generatedAudios[index].variable;
+      const response = await fetch('/api/text-to-speech', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+        },
+        body: JSON.stringify({
+          ...formData,
+          variables: [variable],
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to regenerate speech');
+      }
+
+      const data = await response.json();
+      const newAudioSrc = `data:audio/mpeg;base64,${data.audios[0]}`;
+
+      setGeneratedAudios(prevAudios => {
+        const newAudios = [...prevAudios];
+        newAudios[index] = { ...newAudios[index], audioSrc: newAudioSrc };
+        return newAudios;
+      });
+    } catch (err) {
+      setError('An error occurred while regenerating speech. Please try again.');
+      console.error(err);
+    } finally {
+      setRegeneratingIndex(null);
+    }
+  };
 
   const selectedModel = models.find(model => model.model_id === formData.model_id);
   const isTurboV25 = selectedModel?.model_id === 'eleven_turbo_v2_5';
@@ -644,11 +684,26 @@ export default function TextToSpeechForm() {
         <div className="mt-4">
           <h3 className="text-lg font-semibold mb-2">Generated Audios:</h3>
           {generatedAudios.map((audio, index) => (
-            <div key={index} className="mb-4">
+            <div key={index} className="mb-4 flex items-center">
+              <div className="flex-grow">
               <p className="text-sm font-medium text-gray-700 mb-1">Variable: {audio.variable}</p>
               <audio controls src={audio.audioSrc} className="w-full">
                 Your browser does not support the audio element.
               </audio>
+              </div>
+              <button
+                type="button"
+                className={`ml-2 px-3 py-1 text-sm font-medium rounded-md ${
+                    regeneratingIndex === index
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-blue-500 text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
+                }`}
+                disabled={regeneratingIndex === index}
+                onClick={() => handleRegenerateAudio(index)}
+                aria-label={`Regenerate audio for ${audio.variable}`}
+              >
+                {regeneratingIndex === index ? 'Regenerating...' : 'Regenerate'}
+              </button>
             </div>
           ))}
           <button
