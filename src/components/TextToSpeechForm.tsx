@@ -11,6 +11,9 @@ export default function TextToSpeechForm() {
     similarityBoost: 0,
     optimizeStreamingLatency: false,
   })
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [audioSrc, setAudioSrc] = useState<string | null>(null)
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target
@@ -30,8 +33,32 @@ export default function TextToSpeechForm() {
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    console.log('Form data:', formData)
-    // Aquí iría la lógica para enviar los datos a la API de ElevenLabs
+    setIsLoading(true)
+    setError(null)
+    setAudioSrc(null)
+
+    try {
+      const response = await fetch('/api/text-to-speech', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to generate speech')
+      }
+
+      const data = await response.json()
+      const audio = `data:audio/mpeg;base64,${data.audio}`
+      setAudioSrc(audio)
+    } catch (err) {
+      setError('An error occurred while generating speech. Please try again.')
+      console.error(err)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -48,6 +75,7 @@ export default function TextToSpeechForm() {
           placeholder="Enter the text to convert to speech"
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           rows={4}
+          required
         />
       </div>
 
@@ -59,6 +87,7 @@ export default function TextToSpeechForm() {
           value={formData.modelId}
           onChange={handleInputChange}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          required
         >
           <option value="">Select a model</option>
           <option value="eleven_monolingual_v1">Eleven Monolingual v1</option>
@@ -76,6 +105,7 @@ export default function TextToSpeechForm() {
           onChange={handleInputChange}
           placeholder="Enter the voice ID"
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          required
         />
       </div>
 
@@ -128,10 +158,25 @@ export default function TextToSpeechForm() {
 
       <button
         type="submit"
-        className="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        className="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+        disabled={isLoading}
       >
-        Generate Speech
+        {isLoading ? 'Generating...' : 'Generate Speech'}
       </button>
+
+      {error && (
+        <div className="mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+          {error}
+        </div>
+      )}
+
+      {audioSrc && (
+        <div className="mt-4">
+          <audio controls src={audioSrc} className="w-full">
+            Your browser does not support the audio element.
+          </audio>
+        </div>
+      )}
     </form>
   )
 }
