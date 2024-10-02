@@ -32,6 +32,11 @@ export default function TextToSpeechForm() {
     voice_latency: number;
     output_format: string;
     language_code: string;
+    seed?: number;
+    previous_text?: string;
+    next_text?: string;
+    previous_request_ids: string[];
+    next_request_ids: string[];
   }>({
     text: '',
     model_id: '',
@@ -43,6 +48,8 @@ export default function TextToSpeechForm() {
     voice_latency: 1,
     output_format: 'mp3_44100_128',
     language_code: '',
+    previous_request_ids: [],
+    next_request_ids: [],
   })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -124,10 +131,20 @@ export default function TextToSpeechForm() {
           voice_settings: newVoiceSettings,
         }
       })
+    } else if (name === 'seed') {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value === '' ? undefined : Number(value),
+      }))
+    } else if (name === 'previous_request_ids' || name === 'next_request_ids') {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value.split(',').map(id => id.trim()).filter(id => id !== ''),
+      }))
     } else {
       setFormData(prev => ({
         ...prev,
-        [name]: type === 'number' ? Number(value) : value,
+        [name]: value,
       }))
     }
 
@@ -413,6 +430,71 @@ export default function TextToSpeechForm() {
           <option value="pcm_24000">PCM 24000Hz</option>
           <option value="pcm_44100">PCM 44100Hz</option>
         </select>
+      </div>
+
+      <div className="mb-4">
+        <label htmlFor="seed" className="block text-sm font-medium text-gray-700 mb-2">Seed</label>
+        <input
+          type="number"
+          id="seed"
+          name="seed"
+          value={formData.seed ?? ''}
+          onChange={handleInputChange}
+          placeholder="Enter a seed value (optional)"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
+      <div className="mb-4">
+        <label htmlFor="previous_text" className="block text-sm font-medium text-gray-700 mb-2">Previous Text</label>
+        <textarea
+          id="previous_text"
+          name="previous_text"
+          value={formData.previous_text ?? ''}
+          onChange={handleInputChange}
+          placeholder="Enter previous text (optional)"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          rows={2}
+        />
+      </div>
+
+      <div className="mb-4">
+        <label htmlFor="next_text" className="block text-sm font-medium text-gray-700 mb-2">Next Text</label>
+        <textarea
+          id="next_text"
+          name="next_text"
+          value={formData.next_text ?? ''}
+          onChange={handleInputChange}
+          placeholder="Enter next text (optional)"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          rows={2}
+        />
+      </div>
+
+      <div className="mb-4">
+        <label htmlFor="previous_request_ids" className="block text-sm font-medium text-gray-700 mb-2">Previous Request IDs</label>
+        <input
+          type="text"
+          id="previous_request_ids"
+          name="previous_request_ids"
+          value={formData.previous_request_ids.join(', ')}
+          onChange={handleInputChange}
+          placeholder="Enter previous request IDs, separated by commas"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
+      <div className="mb-4">
+        <label htmlFor="next_request_ids" className="block text-sm font-medium text-gray-700 mb-2">Next Request IDs</label>
+        <input
+          type="text"
+          id="next_request_ids"
+          name="next_request_ids"
+          value={formData.next_request_ids.join(', ')}
+          onChange={handleInputChange}
+          placeholder="Enter next request IDs, separated by commas"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
       </div>
 
       <button

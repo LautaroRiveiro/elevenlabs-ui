@@ -23,14 +23,11 @@ export async function GET(request: Request) {
       }
     });
 
-    console.log(response)
-
     if (!response.ok) {
       throw new Error('Failed to fetch voice settings');
     }
 
     const data = await response.json();
-    console.log(data)
     return NextResponse.json(data);
   } catch (error) {
     console.error('Error fetching voice settings:', error);
