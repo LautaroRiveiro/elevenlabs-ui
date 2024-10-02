@@ -11,16 +11,28 @@ interface Model {
   model_id: string;
   name: string;
   description: string;
+  can_use_style: boolean;
+  can_use_speaker_boost: boolean;
   languages: { language_id: string; name: string }[];
 }
 
 interface VoiceSettings {
   stability: number;
   similarity_boost: number;
+  style?: number;
+  use_speaker_boost?: boolean;
 }
 
 export default function TextToSpeechForm() {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    text: string;
+    model_id: string;
+    voice_id: string;
+    voice_settings: VoiceSettings;
+    voice_latency: number;
+    output_format: string;
+    language_code: string;
+  }>({
     text: '',
     model_id: '',
     voice_id: '',
@@ -86,16 +98,32 @@ export default function TextToSpeechForm() {
         ...prev,
         voice_settings: {
           ...prev.voice_settings,
-          [settingName]: Number(value),
+          [settingName]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : Number(value),
         }
       }))
     } else if (name === 'model_id') {
       const selectedModel = models.find(model => model.model_id === value);
-      setFormData(prev => ({
-        ...prev,
-        [name]: value,
-        language_code: selectedModel?.model_id === 'eleven_turbo_v2_5' ? prev.language_code : '',
-      }))
+      setFormData(prev => {
+        const newVoiceSettings: VoiceSettings = {
+          ...prev.voice_settings,
+        }
+        if (selectedModel?.can_use_style) {
+          newVoiceSettings.style = prev.voice_settings.style ?? 0
+        } else {
+          delete newVoiceSettings.style
+        }
+        if (selectedModel?.can_use_speaker_boost) {
+          newVoiceSettings.use_speaker_boost = prev.voice_settings.use_speaker_boost ?? false
+        } else {
+          delete newVoiceSettings.use_speaker_boost
+        }
+        return {
+          ...prev,
+          [name]: value,
+          language_code: selectedModel?.model_id === 'eleven_turbo_v2_5' ? prev.language_code : '',
+          voice_settings: newVoiceSettings,
+        }
+      })
     } else {
       setFormData(prev => ({
         ...prev,
@@ -132,13 +160,22 @@ export default function TextToSpeechForm() {
 
   const updateVoiceSettings = (settings: VoiceSettings | null) => {
     if (settings) {
-      setFormData(prev => ({
-        ...prev,
-        voice_settings: {
+      setFormData(prev => {
+        const newVoiceSettings: VoiceSettings = {
           stability: Number(settings.stability),
           similarity_boost: Number(settings.similarity_boost),
         }
-      }));
+        if (settings.style !== undefined) {
+          newVoiceSettings.style = Number(settings.style)
+        }
+        if (settings.use_speaker_boost !== undefined) {
+          newVoiceSettings.use_speaker_boost = settings.use_speaker_boost
+        }
+        return {
+          ...prev,
+          voice_settings: newVoiceSettings,
+        }
+      });
     } else {
       console.error('Received null or undefined voice settings');
       setError('Failed to load voice settings. Using default values.');
@@ -308,6 +345,41 @@ export default function TextToSpeechForm() {
           disabled={isLoadingVoiceSettings}
         />
       </div>
+
+      {selectedModel?.can_use_style && formData.voice_settings.style !== undefined && (
+        <div className="mb-4">
+          <label htmlFor="voice_settings.style" className="block text-sm font-medium text-gray-700 mb-2">
+            Style: {formData.voice_settings.style.toFixed(2)}
+          </label>
+          <input
+            type="range"
+            id="voice_settings.style"
+            name="voice_settings.style"
+            min="0"
+            max="1"
+            step="0.01"
+            value={formData.voice_settings.style}
+            onChange={handleInputChange}
+            className="w-full"
+          />
+        </div>
+      )}
+
+      {selectedModel?.can_use_speaker_boost && formData.voice_settings.use_speaker_boost !== undefined && (
+        <div className="mb-4">
+          <label htmlFor="voice_settings.use_speaker_boost" className="flex items-center text-sm font-medium text-gray-700">
+            <input
+              type="checkbox"
+              id="voice_settings.use_speaker_boost"
+              name="voice_settings.use_speaker_boost"
+              checked={formData.voice_settings.use_speaker_boost}
+              onChange={handleInputChange}
+              className="mr-2"
+            />
+            Use Speaker Boost
+          </label>
+        </div>
+      )}
 
       <div className="mb-4">
         <label htmlFor="voice_latency" className="block text-sm font-medium text-gray-700 mb-2">Voice Latency</label>

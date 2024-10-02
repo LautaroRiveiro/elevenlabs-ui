@@ -7,6 +7,8 @@ interface RequestBody {
   voice_settings: {
     stability: number
     similarity_boost: number
+    style?: number
+    use_speaker_boost?: boolean
   }
   voice_latency: number
   output_format: string
@@ -42,9 +44,20 @@ export async function POST(request: Request) {
     const requestBody: any = {
       text,
       model_id,
-      voice_settings,
+      voice_settings: {
+        stability: voice_settings.stability,
+        similarity_boost: voice_settings.similarity_boost
+      },
       voice_latency,
       output_format
+    }
+
+    // Incluir style y use_speaker_boost solo si están definidos
+    if (voice_settings.style !== undefined) {
+      requestBody.voice_settings.style = voice_settings.style
+    }
+    if (voice_settings.use_speaker_boost !== undefined) {
+      requestBody.voice_settings.use_speaker_boost = voice_settings.use_speaker_boost
     }
 
     // Solo incluir language_code si el modelo es Turbo v2.5
