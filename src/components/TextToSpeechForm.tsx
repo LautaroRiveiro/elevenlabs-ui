@@ -24,6 +24,8 @@ interface VoiceSettings {
 }
 
 export default function TextToSpeechForm() {
+  const [apiKey, setApiKey] = useState<string>('')
+  const [isApiKeyValid, setIsApiKeyValid] = useState<boolean | null>(null)
   const [formData, setFormData] = useState<{
     text: string;
     model_id: string;
@@ -61,45 +63,71 @@ export default function TextToSpeechForm() {
   const [isLoadingVoiceSettings, setIsLoadingVoiceSettings] = useState(false)
 
   useEffect(() => {
-    const fetchVoices = async () => {
-      try {
-        const response = await fetch('/api/get-voices');
-        if (!response.ok) {
-          throw new Error('Failed to fetch voices');
-        }
-        const data = await response.json();
-        setVoices(data.voices || []);
-      } catch (error) {
-        console.error('Error fetching voices:', error);
-        setError('Failed to load voices. Please try again later.');
-      } finally {
-        setIsLoadingVoices(false);
-      }
-    };
+    checkApiKey();
+  }, []);
 
-    const fetchModels = async () => {
-      try {
-        const response = await fetch('/api/get-models');
-        if (!response.ok) {
-          throw new Error('Failed to fetch models');
-        }
-        const data = await response.json();
-        setModels(data || []);
-      } catch (error) {
-        console.error('Error fetching models:', error);
-        setError('Failed to load models. Please try again later.');
-      } finally {
-        setIsLoadingModels(false);
+  const checkApiKey = async () => {
+    try {
+      const response = await fetch('/api/check-api-key');
+      const data = await response.json();
+      setIsApiKeyValid(data.isSet);
+      if (data.isSet) {
+        fetchInitialData();
       }
-    };
+    } catch (error) {
+      console.error('Error checking API key:', error);
+      setIsApiKeyValid(false);
+    }
+  };
 
+  const fetchInitialData = () => {
     fetchVoices();
     fetchModels();
-  }, []);
+  };
+
+  const fetchVoices = async () => {
+    setIsLoadingVoices(true);
+    try {
+      const response = await fetch('/api/get-voices', {
+        headers: { 'x-api-key': apiKey },
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch voices');
+      }
+      const data = await response.json();
+      setVoices(data.voices || []);
+    } catch (error) {
+      console.error('Error fetching voices:', error);
+      setError('Failed to load voices. Please try again later.');
+    } finally {
+      setIsLoadingVoices(false);
+    }
+  };
+
+  const fetchModels = async () => {
+    setIsLoadingModels(true);
+    try {
+      const response = await fetch('/api/get-models', {
+        headers: { 'x-api-key': apiKey },
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch models');
+      }
+      const data = await response.json();
+      setModels(data || []);
+    } catch (error) {
+      console.error('Error fetching models:', error);
+      setError('Failed to load models. Please try again later.');
+    } finally {
+      setIsLoadingModels(false);
+    }
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target
-    if (name.startsWith('voice_settings.')) {
+    if (name === 'apiKey') {
+      setApiKey(value);
+    } else if (name.startsWith('voice_settings.')) {
       const settingName = name.split('.')[1] as keyof VoiceSettings
       setFormData(prev => ({
         ...prev,
@@ -157,7 +185,9 @@ export default function TextToSpeechForm() {
     setIsLoadingVoiceSettings(true);
     setError(null);
     try {
-      const response = await fetch(`/api/get-voice-settings?voiceId=${voiceId}`);
+      const response = await fetch(`/api/get-voice-settings?voiceId=${voiceId}`, {
+        headers: { 'x-api-key': apiKey },
+      });
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -217,6 +247,7 @@ export default function TextToSpeechForm() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-api-key': apiKey,
         },
         body: JSON.stringify(formData),
       })
@@ -237,8 +268,45 @@ export default function TextToSpeechForm() {
     }
   }
 
+  const handleApiKeySubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsApiKeyValid(true);
+    fetchInitialData();
+  };
+
   const selectedModel = models.find(model => model.model_id === formData.model_id);
   const isTurboV25 = selectedModel?.model_id === 'eleven_turbo_v2_5';
+
+  if (isApiKeyValid === null) {
+    return <div>Checking API key...</div>;
+  }
+
+  if (isApiKeyValid === false) {
+    return (
+      <form onSubmit={handleApiKeySubmit} className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-md">
+        <h2 className="text-2xl font-bold mb-6">Enter ElevenLabs API Key</h2>
+        <div className="mb-4">
+          <label htmlFor="apiKey" className="block text-sm font-medium text-gray-700 mb-2">API Key</label>
+          <input
+            type="text"
+            id="apiKey"
+            name="apiKey"
+            value={apiKey}
+            onChange={handleInputChange}
+            placeholder="Enter your ElevenLabs API Key"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required
+          />
+        </div>
+        <button
+          type="submit"
+          className="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        >
+          Submit
+        </button>
+      </form>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="max-w-2xl mx-auto p-6 bg-white rounded-lg shadow-md">

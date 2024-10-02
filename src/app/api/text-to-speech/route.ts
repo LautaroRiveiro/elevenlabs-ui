@@ -26,9 +26,9 @@ export async function POST(request: Request) {
   try {
     const body: RequestBody = await request.json()
 
-    const apiKey = process.env.ELEVENLABS_API_KEY
+    const apiKey = request.headers.get('x-api-key') || process.env.ELEVENLABS_API_KEY
     if (!apiKey) {
-      return NextResponse.json({ error: 'ElevenLabs API key is not configured' }, { status: 500 })
+      return NextResponse.json({ error: 'ElevenLabs API key is not provided' }, { status: 400 })
     }
 
     const {
