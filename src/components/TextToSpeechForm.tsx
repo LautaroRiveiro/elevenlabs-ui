@@ -1,8 +1,8 @@
 'use client'
 
-import JSZip from 'jszip';
 import { useState, FormEvent, useEffect, useCallback } from 'react'
 import ApiKeyInput from './ApiKeyInput'
+import GeneratedAudios from './GeneratedAudios';
 
 interface Voice {
   voice_id: string;
@@ -70,7 +70,6 @@ export default function TextToSpeechForm() {
   const [isLoadingVoices, setIsLoadingVoices] = useState(true)
   const [isLoadingModels, setIsLoadingModels] = useState(true)
   const [isLoadingVoiceSettings, setIsLoadingVoiceSettings] = useState(false)
-  const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null)
 
   const fetchInitialData = useCallback(async (apiKey: string) => {
     await Promise.all([
@@ -296,41 +295,7 @@ export default function TextToSpeechForm() {
     setIsApiKeyValid(true);
   };
 
-  const handleDownloadZip = async () => {
-    if (generatedAudios.length === 0) {
-      setError('No audios generated yet. Please generate audios first.');
-      return;
-    }
-
-    try {
-      const zip = new JSZip();
-
-      // Add each audio to the zip file
-      generatedAudios.forEach((audio) => {
-        const base64Data = audio.audioSrc.split(',')[1];
-        zip.file(`${audio.variable}.mp3`, base64Data, {base64: true});
-      });
-
-      // Generate the zip file
-      const content = await zip.generateAsync({type: "blob"});
-
-      // Create a download link and trigger the download
-      const url = window.URL.createObjectURL(content);
-      const a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = url;
-      a.download = 'generated_audios.zip';
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      setError('An error occurred while generating the ZIP file. Please try again.');
-      console.error(err);
-    }
-  }
-
   const handleRegenerateAudio = async (index: number) => {
-    setRegeneratingIndex(index);
     setError(null);
 
     try {
@@ -363,8 +328,6 @@ export default function TextToSpeechForm() {
     } catch (err) {
       setError('An error occurred while regenerating speech. Please try again.');
       console.error(err);
-    } finally {
-      setRegeneratingIndex(null);
     }
   };
 
@@ -663,37 +626,10 @@ export default function TextToSpeechForm() {
         </div>
       )}
 
-      {generatedAudios.length > 0 && (
-        <div className="mt-4">
-          <h3 className="text-lg font-semibold mb-2">Generated Audios:</h3>
-          {generatedAudios.map((audio, index) => (
-            <div key={index} className="mb-4">
-              <p className="text-sm font-medium text-gray-700 mb-1">Variable: {audio.variable}</p>
-              <audio controls src={audio.audioSrc} className="w-full mb-2">
-                Your browser does not support the audio element.
-              </audio>
-              <button
-                onClick={() => handleRegenerateAudio(index)}
-                className={`ml-2 px-3 py-1 text-sm font-medium rounded-md ${
-                  regeneratingIndex === index
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-blue-500 text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
-                }`}
-                disabled={regeneratingIndex === index}
-              >
-                {regeneratingIndex === index ? 'Regenerating...' : 'Regenerate'}
-              </button>
-            </div>
-          ))}
-          <button
-            onClick={handleDownloadZip}
-            type='button'
-            className="mt-4 w-full bg-green-500 text-white py-2 px-4 rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
-          >
-            Download All as ZIP
-          </button>
-        </div>
-      )}
+      <GeneratedAudios
+        generatedAudios={generatedAudios}
+        onRegenerateAudio={handleRegenerateAudio}
+      />
     </form>
   )
 }
