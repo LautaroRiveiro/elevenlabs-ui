@@ -1,7 +1,8 @@
 'use client'
 
 import JSZip from 'jszip';
-import { useState, FormEvent, useEffect } from 'react'
+import { useState, FormEvent, useEffect, useCallback } from 'react'
+import ApiKeyInput from './ApiKeyInput'
 
 interface Voice {
   voice_id: string;
@@ -71,17 +72,30 @@ export default function TextToSpeechForm() {
   const [isLoadingVoiceSettings, setIsLoadingVoiceSettings] = useState(false)
   const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null)
 
+  const fetchInitialData = useCallback(async (apiKey: string) => {
+    await Promise.all([
+      fetchVoices(apiKey),
+      fetchModels(apiKey)
+    ]);
+  }, []);
+
   useEffect(() => {
     checkApiKey();
   }, []);
+
+  useEffect(() => {
+    if (apiKey) {
+      fetchInitialData(apiKey);
+    }
+  }, [apiKey, fetchInitialData]);
 
   const checkApiKey = async () => {
     try {
       const response = await fetch('/api/check-api-key');
       const data = await response.json();
       setIsApiKeyValid(data.isSet);
-      if (data.isSet) {
-        fetchInitialData();
+      if (data.isSet && data.apiKey) {
+        setApiKey(data.apiKey);
       }
     } catch (error) {
       console.error('Error checking API key:', error);
@@ -89,12 +103,7 @@ export default function TextToSpeechForm() {
     }
   };
 
-  const fetchInitialData = () => {
-    fetchVoices();
-    fetchModels();
-  };
-
-  const fetchVoices = async () => {
+  const fetchVoices = async (apiKey: string) => {
     setIsLoadingVoices(true);
     try {
       const response = await fetch('/api/get-voices', {
@@ -113,7 +122,7 @@ export default function TextToSpeechForm() {
     }
   };
 
-  const fetchModels = async () => {
+  const fetchModels = async (apiKey: string) => {
     setIsLoadingModels(true);
     try {
       const response = await fetch('/api/get-models', {
@@ -134,9 +143,7 @@ export default function TextToSpeechForm() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target
-    if (name === 'apiKey') {
-      setApiKey(value);
-    } else if (name.startsWith('voice_settings.')) {
+    if (name.startsWith('voice_settings.')) {
       const settingName = name.split('.')[1] as keyof VoiceSettings
       setFormData(prev => ({
         ...prev,
@@ -274,7 +281,7 @@ export default function TextToSpeechForm() {
       const newGeneratedAudios = data.audios.map((audio: string, index: number) => ({
         variable: variables[index],
         audioSrc: `data:audio/mpeg;base64,${audio}`
-      }))
+      }));
       setGeneratedAudios(newGeneratedAudios)
     } catch (err) {
       setError('An error occurred while generating speech. Please try again.')
@@ -284,10 +291,9 @@ export default function TextToSpeechForm() {
     }
   }
 
-  const handleApiKeySubmit = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleApiKeySubmit = (submittedApiKey: string) => {
+    setApiKey(submittedApiKey);
     setIsApiKeyValid(true);
-    fetchInitialData();
   };
 
   const handleDownloadZip = async () => {
@@ -370,30 +376,7 @@ export default function TextToSpeechForm() {
   }
 
   if (isApiKeyValid === false) {
-    return (
-      <form onSubmit={handleApiKeySubmit} className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-md">
-        <h2 className="text-2xl font-bold mb-6">Enter ElevenLabs API Key</h2>
-        <div className="mb-4">
-          <label htmlFor="apiKey" className="block text-sm font-medium text-gray-700 mb-2">API Key</label>
-          <input
-            type="text"
-            id="apiKey"
-            name="apiKey"
-            value={apiKey}
-            onChange={handleInputChange}
-            placeholder="Enter your ElevenLabs API Key"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            required
-          />
-        </div>
-        <button
-          type="submit"
-          className="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-        >
-          Submit
-        </button>
-      </form>
-    );
+    return <ApiKeyInput onApiKeySubmit={handleApiKeySubmit} />;
   }
 
   return (
@@ -684,23 +667,19 @@ export default function TextToSpeechForm() {
         <div className="mt-4">
           <h3 className="text-lg font-semibold mb-2">Generated Audios:</h3>
           {generatedAudios.map((audio, index) => (
-            <div key={index} className="mb-4 flex items-center">
-              <div className="flex-grow">
+            <div key={index} className="mb-4">
               <p className="text-sm font-medium text-gray-700 mb-1">Variable: {audio.variable}</p>
-              <audio controls src={audio.audioSrc} className="w-full">
+              <audio controls src={audio.audioSrc} className="w-full mb-2">
                 Your browser does not support the audio element.
               </audio>
-              </div>
               <button
-                type="button"
+                onClick={() => handleRegenerateAudio(index)}
                 className={`ml-2 px-3 py-1 text-sm font-medium rounded-md ${
-                    regeneratingIndex === index
+                  regeneratingIndex === index
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     : 'bg-blue-500 text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
                 }`}
                 disabled={regeneratingIndex === index}
-                onClick={() => handleRegenerateAudio(index)}
-                aria-label={`Regenerate audio for ${audio.variable}`}
               >
                 {regeneratingIndex === index ? 'Regenerating...' : 'Regenerate'}
               </button>
