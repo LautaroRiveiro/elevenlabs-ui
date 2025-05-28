@@ -18,15 +18,14 @@ interface HistoryItem {
   character_count_change_from: number;
   character_count_change_to: number;
   content_type: string;
-  state: 'created' | 'deleted' | 'processing' | 'processed' | 'error' | 'awaiting_processing';
-  settings: {
+  state: 'created' | 'deleted' | 'processing' | 'processed' | 'error' | 'awaiting_processing';  settings: {
     similarity_boost?: number;
     stability?: number;
     style?: number;
     use_speaker_boost?: boolean;
   };
   model_id?: string;
-  feedback: any;
+  feedback: Record<string, unknown> | null;
   share_link_id: string | null;
   source: string;
 }
@@ -162,13 +161,12 @@ export default function HistoryPage() {
       
       const filteredHistory = data.history.filter(item => item.voice_id === voiceIdToFetch);
 
-      setHistoryItems(prev => startAfterId ? [...prev, ...filteredHistory] : filteredHistory);
-      setLastHistoryItemId(data.last_history_item_id);
+      setHistoryItems(prev => startAfterId ? [...prev, ...filteredHistory] : filteredHistory);      setLastHistoryItemId(data.last_history_item_id);
       setHasMoreHistory(data.has_more && (filteredHistory.length > 0 || data.history.length === 0));
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching history:', err);
-      setError(err.message || 'Failed to load history. Please try again.');
+      setError((err as Error)?.message || 'Failed to load history. Please try again.');
       setHistoryItems([]);
     } finally {
       setIsLoadingHistory(false);
@@ -251,12 +249,10 @@ export default function HistoryPage() {
 
       audio.onpause = () => {
         setIsPlaying(false);
-      };
-
-      await audio.play();
-    } catch (err: any) {
+      };      await audio.play();
+    } catch (err: unknown) {
       console.error('Error playing audio:', err);
-      setError(err.message || 'Failed to play audio');
+      setError((err as Error)?.message || 'Failed to play audio');
       setPlayingItemId(null);
       setIsPlaying(false);
       audioRef.current = null;
@@ -352,12 +348,11 @@ export default function HistoryPage() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
-      // Clean up the object URL
+        // Clean up the object URL
       URL.revokeObjectURL(audioUrl);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error downloading audio:', err);
-      setError(err.message || 'Failed to download audio');
+      setError((err as Error)?.message || 'Failed to download audio');
     }
   };
 
@@ -430,9 +425,8 @@ export default function HistoryPage() {
           <div
             ref={dropdownRef}
             className="absolute z-10 mt-1 w-full bg-white shadow-lg rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm"
-          >
-            <div className="cursor-default select-none relative py-2 pl-3 pr-9 text-gray-700">
-              No voices found matching "{searchTerm}"
+          >            <div className="cursor-default select-none relative py-2 pl-3 pr-9 text-gray-700">
+              No voices found matching &quot;{searchTerm}&quot;
             </div>
           </div>
         )}
