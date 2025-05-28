@@ -326,10 +326,38 @@ export default function HistoryPage() {
       setCopiedItemId(item.history_item_id);
       setTimeout(() => {
         setCopiedItemId(null);
-      }, 2000);
-    } catch (err) {
+      }, 2000);    } catch (err) {
       console.error('Failed to copy to clipboard:', err);
       setError('Failed to copy settings to clipboard');
+    }
+  };
+
+  const downloadAudio = async (historyItemId: string, voiceName: string, text: string) => {
+    try {
+      const response = await fetch(`/api/get-audio/${historyItemId}`, {
+        headers: { 'x-api-key': apiKey },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch audio');
+      }
+
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      
+      // Create a temporary link element to trigger the download
+      const link = document.createElement('a');
+      link.href = audioUrl;
+      link.download = `${voiceName}_${text.substring(0, 30).replace(/[^a-zA-Z0-9]/g, '_')}_${historyItemId}.mp3`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up the object URL
+      URL.revokeObjectURL(audioUrl);
+    } catch (err: any) {
+      console.error('Error downloading audio:', err);
+      setError(err.message || 'Failed to download audio');
     }
   };
 
@@ -464,8 +492,7 @@ export default function HistoryPage() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {item.history_item_id}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <button
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">                    <button
                       onClick={() => toggleAudio(item.history_item_id)}                      className="inline-flex items-center p-2 border border-transparent rounded-full shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                       title={playingItemId === item.history_item_id && isPlaying ? "Pause audio" : "Play audio"}
                     >                      {playingItemId === item.history_item_id && isPlaying ? (
@@ -479,6 +506,15 @@ export default function HistoryPage() {
                           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
                         </svg>
                       )}
+                    </button>
+                    <button
+                      onClick={() => downloadAudio(item.history_item_id, item.voice_name, item.text)}
+                      className="ml-2 inline-flex items-center p-2 border border-transparent rounded-full shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+                      title="Download audio"
+                    >
+                      <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
                     </button>                    <button
                       onClick={() => copySettings(item)}
                       className={`ml-2 inline-flex items-center p-2 border border-transparent rounded-full shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2 ${
